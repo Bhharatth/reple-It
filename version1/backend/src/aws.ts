@@ -49,9 +49,47 @@ export async function fetchS3Folder (key:string, localPath: string):Promise<void
     } catch (error) {
         console.error('Error fetching folder:', error);
     }
-
   
+};
 
+export async function copyS3Folder(sourcePrefix: string, destinationPrefix: string, continuationToken?: string){
+    try {
+        const listedParams= {
+            Bucket:"",
+            Prefix:"",
+            ContinuationToken: continuationToken
+        }
+
+        const listedObjects = await s3.listObjectsV2(listedParams).promise();
+
+        if(!listedObjects.Contents || listedObjects.Contents.length === 0){
+            return;
+        }
+
+
+        await Promise.all(listedObjects.Contents.map(async(Object)=> {
+            if(! Object.Key){
+                return
+            };
+
+            let destinationKey = Object.Key.replace(sourcePrefix, destinationPrefix);
+
+            let copyParms = {
+                Bucket: "",
+                CopySource: "",
+                Key: destinationKey
+            };
+            await s3.copyObject(copyParms).promise();
+            console.log(`Copied ${Object.Key} to ${destinationKey}`)
+        }));
+        
+        if(listedObjects.IsTruncated){
+            listedParams.ContinuationToken = listedObjects.NextContinuationToken as string;
+            await copyS3Folder(sourcePrefix,destinationPrefix, continuationToken);
+        }
+    } catch (error) {
+        console.error('Error copying folder:', error)
+    }
 }
 
 
